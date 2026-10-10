@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arbeitszeiterfassung</title>
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background-color: #f2f2f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #2c3e50; }
+        .app-wrapper { display: flex; flex-direction: column; height: 100%; width: 100%; }
+        .header-container { flex-shrink: 0; background: #2c3e50; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .global-stats { display: flex; justify-content: space-around; padding: 14px 10px; color: #ffffff; text-align: center; border-bottom: 2px solid #34495e; }
+        .stat-box { flex: 1; display: flex; flex-direction: column; align-items: center; }
+        .stat-box span { font-size: 0.82em; color: #bdc3c7; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .stat-box strong { font-size: 1.45em; font-weight: 700; }
+        .btn-group { display: flex; gap: 6px; margin-top: 6px; }
+        .btn-small { background: #5d6d7e; color: white; border: none; padding: 4px 9px; border-radius: 4px; font-size: 0.72em; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        .btn-small:active { opacity: 0.8; }
+        .btn-pay { background: #e67e22; }
+        
+        .month-nav { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px 8px 16px; background: #ffffff; color: #2c3e50; }
+        .month-nav button { background: #edf2f7; border: 1px solid #cbd5e0; color: #2b6cb0; font-size: 1.1em; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; }
+        .month-nav button:active { background: #e2e8f0; }
+        #month-title { font-size: 1.25em; font-weight: bold; }
+
+        .action-bar { display: flex; justify-content: center; gap: 10px; padding: 0 16px 12px 16px; background: #ffffff; border-bottom: 1px solid #e2e8f0; }
+        .btn-action { color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; font-size: 0.9em; cursor: pointer; flex: 1; text-align: center; transition: opacity 0.2s; }
+        .btn-action:active { opacity: 0.7; }
+
+        .month-summary { display: flex; justify-content: space-around; background: #edf2f7; padding: 10px 8px; border-bottom: 1px solid #cbd5e0; }
+        .month-summary div { display: flex; flex-direction: column; align-items: center; }
+        .month-summary div span:first-child { font-size: 0.75em; color: #718096; font-weight: 600; text-transform: uppercase; margin-bottom: 2px; }
+        .val-soll { color: #2b6cb0; font-weight: 700; font-size: 1.05em; }
+        .val-ist { color: #2d3748; font-weight: 700; font-size: 1.05em; }
+        .val-saldo { font-weight: 700; font-size: 1.05em; }
+        
+        .day-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 10px 60px 10px; }
+        .day-row { display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 12px 14px; margin-bottom: 8px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border-left: 6px solid #cbd5e0; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
+        .day-row:active { transform: scale(0.99); }
+        .day-row.samstag { background: #faf4ec; border-left-color: #d8be9b; }
+        .day-row.sonntag { background: #fdf0df; border-left-color: #c99c68; }
+        .day-row.status-arbeit { background: #ffffff; border-left-color: #3182ce; }
+        .day-row.status-urlaub { background: #f0fff4; border-left-color: #38a169; }
+        .day-row.status-krank { background: #fffaf0; border-left-color: #dd6b20; }
+        .day-row.status-feiertag { background: #faf5ff; border-left-color: #805ad5; }
+        .day-row.status-abbau { background: #e6fffa; border-left-color: #319795; }
+        .day-row.heute { outline: 2px solid #3182ce; box-shadow: 0 3px 10px rgba(49, 130, 206, 0.25); }
+        .badge-heute { background: #3182ce; color: #ffffff; font-size: 0.68em; padding: 2px 6px; border-radius: 10px; margin-left: 6px; font-weight: 700; letter-spacing: 0.5px; vertical-align: middle; }
+        .badge-typ { display: inline-block; font-size: 0.7em; padding: 2px 6px; border-radius: 4px; font-weight: 700; margin-right: 5px; }
+        .badge-arbeit { background: #ebf8ff; color: #2b6cb0; }
+        .badge-urlaub { background: #c6f6d5; color: #22543d; }
+        .badge-krank { background: #feebc8; color: #7b341e; }
+        .badge-feiertag { background: #e9d8fd; color: #44337a; }
+        .badge-abbau { background: #b2f5ea; color: #234e52; }
+        .day-info { display: flex; flex-direction: column; width: 70%; }
+        .day-date { font-weight: 700; font-size: 1.02em; color: #2d3748; }
+        .day-desc { font-size: 0.82em; color: #4a5568; margin-top: 3px; }
+        .day-hours { font-weight: 700; font-size: 1.15em; text-align: right; width: 30%; }
+        
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.55); align-items: center; justify-content: center; padding: 16px; z-index: 1000; }
+        .modal { background: #ffffff; width: 100%; max-width: 380px; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto; }
+        .modal h3 { margin: 0 0 16px 0; color: #2d3748; border-bottom: 2px solid #edf2f7; padding-bottom: 10px; font-size: 1.15em; }
+        .input-group { margin-bottom: 12px; }
+        .input-group label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.82em; color: #4a5568; }
+        .input-group select, .input-group input, .input-group textarea { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 8px; font-size: 0.95em; background: #f7fafc; color: #2d3748; }
+        .zeit-wrapper { display: flex; gap: 10px; }
+        .zeit-wrapper > div { flex: 1; }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 18px; }
+        .btn-modal { padding: 11px; border: none; border-radius: 8px; font-weight: 700; font-size: 0.9em; cursor: pointer; }
+        .btn-close { flex: 1; background: #e2e8f0; color: #4a5568; }
+        .btn-save { flex: 2; background: #38a169; color: #ffffff; }
+        .firma-row { display: flex; gap: 6px; }
+        .firma-row select { flex: 1; }
+        .btn-firma-edit { background: #4a5568; color: white; border: none; padding: 0 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* --- MODERNES & KOMPAKTES DRUCK-LAYOUT --- */
+        #print-section { display: none; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #2d3748; background: white; }
+        #print-section .header-wrapper { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; border-bottom: 2px solid #3182ce; padding-bottom: 10px; }
+        #print-section h2 { margin: 0 0 4px 0; font-size: 18px; color: #2b6cb0; text-transform: uppercase; letter-spacing: 0.5px; }
+        #print-section p { margin: 0; font-size: 11px; line-height: 1.4; color: #4a5568; }
+        #print-section .stand-box { background: #ebf8ff; padding: 8px 12px; border-radius: 6px; border: 1px solid #bee3f8; font-size: 11px; text-align: right; }
+        #print-section .stand-box strong { color: #2b6cb0; }
+        
+        #print-section table { width: 100%; border-collapse: collapse; margin-top: 0; font-size: 10px; }
+        #print-section th { background-color: #f7fafc; color: #4a5568; font-weight: 600; text-transform: uppercase; font-size: 9px; padding: 5px 6px; text-align: left; border-bottom: 2px solid #e2e8f0; }
+        #print-section td { border-bottom: 1px solid #edf2f7; padding: 4px 6px; text-align: left; color: #2d3748; vertical-align: middle; }
+        #print-section tbody tr:nth-child(even) { background-color: #f8fafc; }
+        
+        /* Hervorhebungen in der Tabelle */
+        #print-section th.col-ist, #print-section td.highlight-ist { background-color: #ebf8ff; color: #2b6cb0; text-align: right; }
+        #print-section th.col-ist { border-bottom: 2px solid #90cdf4; color: #2b6cb0; }
+        #print-section td.highlight-ist { border-bottom: 1px solid #bee3f8; font-size: 11px; font-weight: 700; }
+        
+        /* Moderne Zusammenfassungs-Karten am Ende */
+        #print-section .summary-flex { display: flex; gap: 12px; margin-top: 12px; justify-content: flex-end; }
+        #print-section .sum-card { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; text-align: center; min-width: 90px; }
+        #print-section .sum-card span { display: block; font-size: 9px; text-transform: uppercase; color: #718096; margin-bottom: 2px; }
+        #print-section .sum-card strong { font-size: 13px; color: #2d3748; }
+        
+        #print-section .sum-card.highlight-card { background: #ebf8ff; border-color: #90cdf4; box-shadow: 0 2px 4px rgba(66,153,225,0.15); }
+        #print-section .sum-card.highlight-card span { color: #2b6cb0; font-weight: bold; }
+        #print-section .sum-card.highlight-card strong { color: #2b6cb0; font-size: 16px; }
+
+        @media print {
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            html, body { height: 100% !important; overflow: hidden !important; background: white !important; margin: 0 !important; }
+            .app-wrapper, .modal-overlay, #debug-error { display: none !important; }
+            #print-section { display: block !important; }
+            @page { margin: 10mm; size: A4 portrait; }
+        }
+    </style>
+</head>
+<body>
+    <div id="debug-error" style="display:none; background: #e53e3e; color: white; padding: 20px; z-index: 9999; position: absolute; top:0; left:0; right:0;"></div>
+
+    <!-- HIER WIRD DIE PDF TABELLE GENERIERT -->
+    <div id="print-section"></div>
+
+    <div class="app-wrapper">
+        <div class="header-container" id="main-header">
+            <div class="global-stats">
+                <div class="stat-box">
+                    <span>Überstundenkonto</span>
+                    <strong id="g-ueberstunden">0,00 h</strong>
+                    <div class="btn-group">
+                        <button class="btn-small" onclick="setStartUeberstunden()">Ändern</button>
+                        <button class="btn-small btn-pay" onclick="auszahlen()">Auszahlen</button>
+                    </div>
+                </div>
+                <div class="stat-box" style="border-left: 1px solid #3d566e;">
+                    <span>Urlaubstage</span>
+                    <strong id="g-urlaub">30</strong>
+                    <div class="btn-group">
+                        <button class="btn-small" onclick="setUrlaub()">Ändern</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="month-nav">
+                <button onclick="changeMonth(-1)">&#9664;</button>
+                <div id="month-title">Laden...</div>
+                <button onclick="changeMonth(1)">&#9654;</button>
+            </div>
+            
+            <div class="action-bar">
+                <button class="btn-action" style="background: #2980b9;" onclick="printMonth()">📄 PDF erstellen</button>
+                <button class="btn-action" style="background: #8e44ad;" onclick="prepareEmail()">📧 PDF per Mail</button>
+            </div>
+
+            <div class="month-summary">
+                <div><span>Soll</span><span class="val-soll" id="m-soll">0,00 h</span></div>
+                <div><span>Ist</span><span class="val-ist" id="m-ist">0,00 h</span></div>
+                <div><span>Saldo</span><span class="val-saldo" id="m-saldo">0,00 h</span></div>
+            </div>
+        </div>
+
+        <div class="day-list" id="days-list"></div>
+    </div>
+
+    <!-- MODAL -->
+    <div class="modal-overlay" id="day-modal">
+        <div class="modal">
+            <h3 id="modal-title">Tag bearbeiten</h3>
+            
+            <div class="input-group">
+                <label>Status</label>
+                <select id="edit-typ" onchange="toggleZeitFields()">
+                    <option value="keine">Kein Eintrag</option>
+                    <option value="arbeit">Arbeitszeit</option>
+                    <option value="urlaub">Ferien / Urlaub (Konto neutral)</option>
+                    <option value="krank">Krank (Konto neutral)</option>
+                    <option value="feiertag">Feiertag (Konto neutral)</option>
+                    <option value="abbau">Überstundenabbau (-8,5h Guthaben)</option>
+                </select>
+            </div>
+
+            <div id="zeit-eingaben" style="display:none;">
+                <div class="zeit-wrapper">
+                    <div class="input-group">
+                        <label>Start</label>
+                        <input type="time" id="edit-start" value="06:30">
+                    </div>
+                    <div class="input-group">
+                        <label>Ende</label>
+                        <input type="time" id="edit-end" value="15:30">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Pause (in Stunden)</label>
+                    <input type="number" step="0.25" id="edit-pause" value="0.5">
+                </div>
+                
+                <div class="input-group">
+                    <label>Einsatzort / Firma</label>
+                    <div class="firma-row">
+                        <select id="edit-firma"></select>
+                        <button type="button" class="btn-firma-edit" onclick="editFirmenListe()">⚙️</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Tagesnotiz</label>
+                <textarea id="edit-notiz" rows="2" placeholder="Notiz zum Tag..."></textarea>
+            </div>
+
+            <div class="modal-buttons">
+                <button class="btn-modal btn-close" onclick="closeModal()">Abbrechen</button>
+                <button class="btn-modal btn-save" onclick="saveDay()">Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onerror = function(msg, url, line) {
+            var errDiv = document.getElementById('debug-error');
+            errDiv.style.display = 'block';
+            errDiv.innerHTML = "<h3>Fehler:</h3><p>" + msg + " (Zeile " + line + ")</p>";
+            return false;
+        };
+
+        var data = {};
+        var settings = { startUeberstunden: 0, ausbezahlt: 0, urlaub: 30, mitarbeiterName: "Björn Voss", chefEmail: "" };
+        var firmenListe = ["Firma A", "Firma B", "Baustelle X", "Werkstatt"];
+        var currentDate, displayYear, displayMonth, editKey;
+
+        function initApp() {
+            try {
+                var savedData = localStorage.getItem('zeiterfassung_data_v3');
+                if (savedData) data = JSON.parse(savedData);
+
+                var savedSettings = localStorage.getItem('zeiterfassung_settings_v3');
+                if (savedSettings) {
+                    var s = JSON.parse(savedSettings);
+                    settings.startUeberstunden = Number(s.startUeberstunden) || 0;
+                    settings.ausbezahlt = Number(s.ausbezahlt) || 0;
+                    settings.urlaub = s.urlaub !== undefined ? Number(s.urlaub) : 30;
+                    settings.mitarbeiterName = s.mitarbeiterName || "Björn Voss";
+                    settings.chefEmail = s.chefEmail || "";
+                }
+
+                var savedFirmen = localStorage.getItem('zeiterfassung_firmen_v3');
+                if (savedFirmen) firmenListe = JSON.parse(savedFirmen);
+            } catch(e) {
+                console.error(e);
+            }
+
+            currentDate = new Date();
+            displayYear = currentDate.getFullYear();
+            displayMonth = currentDate.getMonth();
+            editKey = "";
+            
+            render();
+            scrollToHeute();
+        }
+
+        function saveSettings() { localStorage.setItem('zeiterfassung_settings_v3', JSON.stringify(settings)); }
+        function saveData() { localStorage.setItem('zeiterfassung_data_v3', JSON.stringify(data)); }
+        function saveFirmen() { localStorage.setItem('zeiterfassung_firmen_v3', JSON.stringify(firmenListe)); }
+
+        function updateFirmenDropdown(selectedFirma) {
+            var select = document.getElementById('edit-firma');
+            select.innerHTML = '<option value="">-- Kein Ort angegeben --</option>';
+            for (var i = 0; i < firmenListe.length; i++) {
+                var f = firmenListe[i];
+                var sel = (f === selectedFirma) ? 'selected' : '';
+                select.innerHTML += '<option value="' + f + '" ' + sel + '>' + f + '</option>';
+            }
+        }
+
+        function editFirmenListe() {
+            var akt = prompt("Bearbeite deine Firmen/Einsatzorte (mit Komma getrennt):", firmenListe.join(", "));
+            if (akt !== null) {
+                var teile = akt.split(',');
+                firmenListe = [];
+                for (var i = 0; i < teile.length; i++) {
+                    var trimmed = teile[i].trim();
+                    if (trimmed !== "") firmenListe.push(trimmed);
+                }
+                saveFirmen();
+                var aktuellesSelect = document.getElementById('edit-firma').value;
+                updateFirmenDropdown(aktuellesSelect);
+            }
+        }
+
+        function render() {
+            var globalOvertime = Number(settings.startUeberstunden) - Number(settings.ausbezahlt);
+            var globalUrlaub = Number(settings.urlaub);
+
+            for (var key in data) {
+                var entry = data[key];
+                if (!entry || typeof entry !== 'object') continue;
+                
+                var dateObj = new Date(key);
+                if (isNaN(dateObj.getTime())) continue; 
+
+                var dayOfWeek = dateObj.getDay();
+                var isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+                if (entry.typ === 'arbeit') {
+                    var soll = isWeekend ? 0 : 8.5;
+                    globalOvertime += ((Number(entry.ist) || 0) - soll);
+                } else if (entry.typ === 'abbau') {
+                    if (!isWeekend) globalOvertime -= 8.5;
+                } else if (entry.typ === 'urlaub') {
+                    if (!isWeekend) globalUrlaub -= 1;
+                }
+            }
+
+            var otEl = document.getElementById('g-ueberstunden');
+            otEl.textContent = globalOvertime.toFixed(2).replace('.', ',') + ' h';
+            otEl.style.color = globalOvertime >= 0 ? '#38a169' : '#e53e3e';
+            document.getElementById('g-urlaub').textContent = globalUrlaub;
+
+            var monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+            document.getElementById('month-title').textContent = monthNames[displayMonth] + " " + displayYear;
+
+            var daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+            var monatsSoll = 0;
+            var monatsIst = 0;
+            var dayListHtml = '';
+
+            for (var i = 1; i <= daysInMonth; i++) {
+                var d = new Date(displayYear, displayMonth, i);
+                var dayOfWeek = d.getDay();
+                var isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+                var tagesSoll = isWeekend ? 0 : 8.5;
+                monatsSoll += tagesSoll;
+
+                var key = displayYear + "-" + String(displayMonth + 1).padStart(2, '0') + "-" + String(i).padStart(2, '0');
+                var entry = data[key];
+
+                var tagesIst = 0;
+                var anzeigeText = isWeekend ? "Wochenende" : "-";
+                var colorHours = isWeekend ? "#a0aec0" : "#cbd5e0";
+                var statusClass = isWeekend ? (dayOfWeek === 6 ? "samstag" : "sonntag") : "wochentag";
+                var badgeHtml = "";
+
+                if (entry && typeof entry === 'object') {
+                    var zusatzInfo = [];
+                    if (entry.firma) zusatzInfo.push("📍 " + entry.firma);
+                    if (entry.notiz) zusatzInfo.push("📝 " + entry.notiz);
+                    var infoStr = zusatzInfo.length > 0 ? " (" + zusatzInfo.join(" | ") + ")" : "";
+
+                    if (entry.typ === 'arbeit') {
+                        tagesIst = Number(entry.ist) || 0;
+                        statusClass = "status-arbeit";
+                        anzeigeText = (entry.start || '??:??') + " - " + (entry.end || '??:??') + " Uhr (" + (entry.pause || 0) + "h Pause)" + infoStr;
+                        badgeHtml = '<span class="badge-typ badge-arbeit">Arbeit</span>';
+                        colorHours = "#2d3748";
+                    } else if (entry.typ === 'urlaub') {
+                        if (!isWeekend) tagesIst = 8.0;
+                        statusClass = "status-urlaub";
+                        anzeigeText = "Urlaub (8,0h | neutral)" + infoStr;
+                        badgeHtml = '<span class="badge-typ badge-urlaub">Urlaub</span>';
+                        colorHours = "#38a169";
+                    } else if (entry.typ === 'krank') {
+                        if (!isWeekend) tagesIst = 8.0;
+                        statusClass = "status-krank";
+                        anzeigeText = "Krank (8,0h | neutral)" + infoStr;
+                        badgeHtml = '<span class="badge-typ badge-krank">Krank</span>';
+                        colorHours = "#dd6b20";
+                    } else if (entry.typ === 'feiertag') {
+                        if (!isWeekend) tagesIst = 8.0;
+                        statusClass = "status-feiertag";
+                        anzeigeText = "Feiertag (8,0h | neutral)" + infoStr;
+                        badgeHtml = '<span class="badge-typ badge-feiertag">Feiertag</span>';
+                        colorHours = "#805ad5";
+                    } else if (entry.typ === 'abbau') {
+                        if (!isWeekend) tagesIst = 8.5;
+                        statusClass = "status-abbau";
+                        anzeigeText = "Überstundenabbau (-8,5h)" + infoStr;
+                        badgeHtml = '<span class="badge-typ badge-abbau">Abbau</span>';
+                        colorHours = "#319795";
+                    }
+                }
+
+                monatsIst += tagesIst;
+
+                var wochentage = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+                var isHeute = (currentDate.getDate() === i && currentDate.getMonth() === displayMonth && currentDate.getFullYear() === displayYear);
+                var heuteClass = isHeute ? "heute" : "";
+                var heuteBadge = isHeute ? '<span class="badge-heute">HEUTE</span>' : "";
+
+                var dateString = wochentage[dayOfWeek] + ", " + String(i).padStart(2, '0') + "." + String(displayMonth + 1).padStart(2, '0') + ".";
+                var modalDateString = wochentage[dayOfWeek] + ", " + String(i).padStart(2, '0') + ". " + monthNames[displayMonth];
+
+                dayListHtml += '<div class="day-row ' + statusClass + ' ' + heuteClass + '" onclick="openModal(\'' + key + '\', \'' + modalDateString + '\')">';
+                dayListHtml += '<div class="day-info">';
+                dayListHtml += '<span class="day-date">' + dateString + heuteBadge + '</span>';
+                dayListHtml += '<div style="margin-top: 3px;">' + badgeHtml + '<span class="day-desc">' + anzeigeText + '</span></div>';
+                dayListHtml += '</div>';
+                dayListHtml += '<div class="day-hours" style="color: ' + colorHours + ';">' + tagesIst.toFixed(2).replace('.', ',') + ' h</div>';
+                dayListHtml += '</div>';
+            }
+
+            var monatsSaldo = monatsIst - monatsSoll;
+            document.getElementById('m-soll').textContent = monatsSoll.toFixed(2).replace('.', ',') + ' h';
+            document.getElementById('m-ist').textContent = monatsIst.toFixed(2).replace('.', ',') + ' h';
+            var mSaldoEl = document.getElementById('m-saldo');
+            mSaldoEl.textContent = monatsSaldo.toFixed(2).replace('.', ',') + ' h';
+            mSaldoEl.style.color = monatsSaldo >= 0 ? '#3182ce' : '#e53e3e';
+
+            document.getElementById('days-list').innerHTML = dayListHtml;
+        }
+
+        function changeMonth(dir) {
+            displayMonth += dir;
+            if (displayMonth > 11) { displayMonth = 0; displayYear++; }
+            if (displayMonth < 0) { displayMonth = 11; displayYear--; }
+            render();
+        }
+
+        function setStartUeberstunden() {
+            var val = prompt("Anfangswert Überstunden (z.B. 12.5):", settings.startUeberstunden);
+            if (val !== null && !isNaN(parseFloat(val.replace(',', '.')))) {
+                settings.startUeberstunden = parseFloat(val.replace(',', '.'));
+                saveSettings();
+                render();
+            }
+        }
+
+        function setUrlaub() {
+            var val = prompt("Urlaubstage (Gesamtanspruch):", settings.urlaub);
+            if (val !== null && !isNaN(parseInt(val))) {
+                settings.urlaub = parseInt(val);
+                saveSettings();
+                render();
+            }
+        }
+
+        function auszahlen() {
+            var val = prompt("Ausbezahlte Überstunden (z.B. 7.5):");
+            if (val !== null && !isNaN(parseFloat(val.replace(',', '.')))) {
+                settings.ausbezahlt += parseFloat(val.replace(',', '.'));
+                saveSettings();
+                render();
+            }
+        }
+
+        function openModal(key, titleText) {
+            editKey = key;
+            document.getElementById('modal-title').textContent = titleText;
+
+            var entry = data[key];
+            if (entry) {
+                document.getElementById('edit-typ').value = entry.typ;
+                document.getElementById('edit-start').value = entry.start || '06:30';
+                document.getElementById('edit-end').value = entry.end || '15:30';
+                document.getElementById('edit-pause').value = entry.pause !== undefined ? entry.pause : 0.5;
+                document.getElementById('edit-notiz').value = entry.notiz || '';
+                updateFirmenDropdown(entry.firma || '');
+            } else {
+                document.getElementById('edit-typ').value = 'keine';
+                document.getElementById('edit-start').value = '06:30';
+                document.getElementById('edit-end').value = '15:30';
+                document.getElementById('edit-pause').value = 0.5;
+                document.getElementById('edit-notiz').value = '';
+                updateFirmenDropdown('');
+            }
+            toggleZeitFields();
+            document.getElementById('day-modal').style.display = 'flex';
+        }
+
+        function closeModal() { document.getElementById('day-modal').style.display = 'none'; }
+
+        function toggleZeitFields() {
+            var typ = document.getElementById('edit-typ').value;
+            document.getElementById('zeit-eingaben').style.display = (typ === 'arbeit') ? 'block' : 'none';
+        }
+
+        function saveDay() {
+            var typ = document.getElementById('edit-typ').value;
+            var notiz = document.getElementById('edit-notiz').value.trim();
+            var firma = document.getElementById('edit-firma').value;
+
+            if (typ === 'keine' && notiz === '') {
+                delete data[editKey];
+            } else {
+                var start = document.getElementById('edit-start').value;
+                var end = document.getElementById('edit-end').value;
+                var pause = parseFloat(document.getElementById('edit-pause').value) || 0;
+
+                var sParts = start.split(':');
+                var eParts = end.split(':');
+                var sDez = parseInt(sParts[0], 10) + (parseInt(sParts[1], 10) / 60);
+                var eDez = parseInt(eParts[0], 10) + (parseInt(eParts[1], 10) / 60);
+
+                var ist = Math.max(0, eDez - sDez - pause);
+
+                data[editKey] = { 
+                    typ: typ, 
+                    start: start, 
+                    end: end, 
+                    pause: pause, 
+                    ist: ist,
+                    firma: firma,
+                    notiz: notiz
+                };
+            }
+
+            saveData();
+            closeModal();
+            render();
+        }
+
+        function scrollToHeute() {
+            setTimeout(function() {
+                var heuteEl = document.querySelector('.day-row.heute');
+                var listContainer = document.getElementById('days-list');
+                if (heuteEl && listContainer) {
+                    var containerTop = listContainer.getBoundingClientRect().top;
+                    var elementTop = heuteEl.getBoundingClientRect().top;
+                    listContainer.scrollTop = listContainer.scrollTop + (elementTop - containerTop) - 15;
+                }
+            }, 300);
+        }
+
+        // --- MODERNES NATIVES DRUCK-LAYOUT ---
+        function printMonth() {
+            var defName = settings.mitarbeiterName || "Björn Voss";
+            var mName = prompt("Dein Name für den Bericht:", defName);
+            if (mName !== null) {
+                settings.mitarbeiterName = mName;
+                saveSettings();
+            } else {
+                return; 
+            }
+
+            var monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+            var wochentage = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+            
+            var currentOt = document.getElementById('g-ueberstunden').textContent;
+            var currentUrlaub = document.getElementById('g-urlaub').textContent;
+
+            // HTML Header: Modern und nebeneinander
+            var html = '<div class="header-wrapper">';
+            html += '<div>';
+            html += '<h2>Arbeitszeitnachweis</h2>';
+            html += '<p><strong>Firma:</strong> Dahl-Verpackungen<br>';
+            html += '<strong>Mitarbeiter:</strong> ' + settings.mitarbeiterName + '<br>';
+            html += '<strong>Monat:</strong> ' + monthNames[displayMonth] + ' ' + displayYear + '</p>';
+            html += '</div>';
+            
+            html += '<div class="stand-box">';
+            html += '<strong>Aktueller Stand (Gesamt)</strong><br>';
+            html += 'Überstundenkonto: <strong>' + currentOt + '</strong><br>';
+            html += 'Resturlaub: <strong>' + currentUrlaub + ' Tage</strong>';
+            html += '</div>';
+            html += '</div>';
+
+            html += '<table>';
+            html += '<thead><tr><th>Datum</th><th>Status</th><th>Zeit</th><th class="col-ist">Ist (h)</th><th>Ort / Notiz</th></tr></thead><tbody>';
+
+            var daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+            var monatsSoll = 0;
+            var monatsIst = 0;
+
+            for (var i = 1; i <= daysInMonth; i++) {
+                var d = new Date(displayYear, displayMonth, i);
+                var dayOfWeek = d.getDay();
+                var isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+                var tagesSoll = isWeekend ? 0 : 8.5;
+                monatsSoll += tagesSoll;
+
+                var key = displayYear + "-" + String(displayMonth + 1).padStart(2, '0') + "-" + String(i).padStart(2, '0');
+                var entry = data[key];
+
+                var dateStr = wochentage[dayOfWeek] + ', ' + String(i).padStart(2, '0') + '.' + String(displayMonth + 1).padStart(2, '0') + '.';
+                var statusStr = isWeekend ? 'Wochenende' : '-';
+                var zeitStr = '-';
+                var istStr = '0,00';
+                var infoStr = '';
+
+                if (entry) {
+                    if (entry.typ === 'arbeit') {
+                        statusStr = 'Arbeit';
+                        zeitStr = (entry.start || '??') + ' - ' + (entry.end || '??') + ' (-' + (entry.pause||0) + 'h)';
+                        istStr = (Number(entry.ist) || 0).toFixed(2).replace('.', ',');
+                    } else if (entry.typ === 'urlaub') { statusStr = 'Urlaub'; istStr = '8,00'; }
+                    else if (entry.typ === 'krank') { statusStr = 'Krank'; istStr = '8,00'; }
+                    else if (entry.typ === 'feiertag') { statusStr = 'Feiertag'; istStr = '8,00'; }
+                    else if (entry.typ === 'abbau') { statusStr = 'Abbau'; istStr = '8,50'; }
+
+                    var infos = [];
+                    if(entry.firma) infos.push(entry.firma);
+                    if(entry.notiz) infos.push(entry.notiz);
+                    infoStr = infos.join(' | ');
+                }
+
+                monatsIst += (istStr !== '0,00' ? parseFloat(istStr.replace(',', '.')) : 0);
+
+                // CSS-Klasse "highlight-ist" für die Stunden-Zelle
+                html += '<tr><td>'+dateStr+'</td><td>'+statusStr+'</td><td>'+zeitStr+'</td><td class="highlight-ist">'+istStr+'</td><td>'+infoStr+'</td></tr>';
+            }
+
+            var monatsSaldo = monatsIst - monatsSoll;
+            var saldoStil = monatsSaldo >= 0 ? 'color: #38a169;' : 'color: #e53e3e;';
+
+            html += '</tbody></table>';
+            
+            // Zusammenfassung als moderne Cards (anstatt Tabelle)
+            html += '<div class="summary-flex">';
+            html += '<div class="sum-card"><span>Soll gesamt</span><strong>' + monatsSoll.toFixed(2).replace('.', ',') + ' h</strong></div>';
+            html += '<div class="sum-card highlight-card"><span>Zu zahlende Std.</span><strong>' + monatsIst.toFixed(2).replace('.', ',') + ' h</strong></div>';
+            html += '<div class="sum-card"><span>Saldo Monat</span><strong style="' + saldoStil + '">' + (monatsSaldo > 0 ? '+' : '') + monatsSaldo.toFixed(2).replace('.', ',') + ' h</strong></div>';
+            html += '</div>';
+
+            // Den versteckten Druck-Bereich füllen
+            var printDiv = document.getElementById('print-section');
+            printDiv.innerHTML = html;
+            
+            // Standard-Druckdialog des Browsers aufrufen
+            setTimeout(function() {
+                window.print();
+            }, 300);
+        }
+
+        // --- EMAIL FUNKTION ---
+        function prepareEmail() {
+            var defMail = settings.chefEmail || "";
+            var mail = prompt("An welche E-Mail-Adresse soll der Bericht gesendet werden?", defMail);
+            
+            if (mail !== null) {
+                settings.chefEmail = mail;
+                saveSettings();
+                
+                var monthName = document.getElementById('month-title').textContent;
+                var subject = encodeURIComponent("Arbeitszeitnachweis " + settings.mitarbeiterName + " - " + monthName);
+                var body = encodeURIComponent("Hallo,\n\nanbei sende ich meinen aktuellen Arbeitszeitnachweis.\n\nViele Grüße\n" + settings.mitarbeiterName);
+                
+                window.location.href = "mailto:" + mail + "?subject=" + subject + "&body=" + body;
+            }
+        }
+
+        initApp();
+    </script>
+</body>
+</html>
